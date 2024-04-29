@@ -1579,10 +1579,11 @@ static struct buffer_head *__ext4_find_entry(struct inode *dir,
 		int has_inline_data = 1;
 		ret = ext4_find_inline_entry(dir, fname, res_dir,
 					     &has_inline_data);
-		if (inlined)
-			*inlined = has_inline_data;
-		if (has_inline_data)
+		if (has_inline_data) {
+			if (inlined)
+				*inlined = 1;
 			goto cleanup_and_exit;
+		}
 	}
 
 	if ((namelen <= 2) && (name[0] == '.') &&
@@ -1804,11 +1805,14 @@ static struct dentry *ext4_lookup(struct inode *dir, struct dentry *dentry, unsi
 	inode = NULL;
 	if (bh) {
 		__u32 ino = le32_to_cpu(de->inode);
-		brelse(bh);
 		if (!ext4_valid_inum(dir->i_sb, ino)) {
+			printk(KERN_ERR "Name of directory entry has bad");
+			print_bh(dir->i_sb, bh, 0, EXT4_BLOCK_SIZE(dir->i_sb));
+			brelse(bh);
 			EXT4_ERROR_INODE(dir, "bad inode number: %u", ino);
 			return ERR_PTR(-EFSCORRUPTED);
 		}
+		brelse(bh);
 		if (unlikely(ino == dir->i_ino)) {
 			EXT4_ERROR_INODE(dir, "'%pd' linked to parent dir",
 					 dentry);
@@ -1817,8 +1821,9 @@ static struct dentry *ext4_lookup(struct inode *dir, struct dentry *dentry, unsi
 		inode = ext4_iget(dir->i_sb, ino, EXT4_IGET_NORMAL);
 		if (inode == ERR_PTR(-ESTALE)) {
 			EXT4_ERROR_INODE(dir,
-					 "deleted inode referenced: %u",
-					 ino);
+					"deleted inode referenced: %u"
+					"at parent inode : %lu",
+					ino, dir->i_ino);
 			return ERR_PTR(-EFSCORRUPTED);
 		}
 		if (!IS_ERR(inode) && IS_ENCRYPTED(dir) &&
@@ -3004,6 +3009,7 @@ bool ext4_empty_dir(struct inode *inode)
 	if (ext4_check_dir_entry(inode, NULL, de, bh, bh->b_data, bh->b_size,
 				 0) ||
 	    le32_to_cpu(de->inode) != inode->i_ino || strcmp(".", de->name)) {
+		print_bh(sb, bh, 0, EXT4_BLOCK_SIZE(sb));
 		ext4_warning_inode(inode, "directory missing '.'");
 		brelse(bh);
 		return true;
@@ -3013,6 +3019,7 @@ bool ext4_empty_dir(struct inode *inode)
 	if (ext4_check_dir_entry(inode, NULL, de, bh, bh->b_data, bh->b_size,
 				 offset) ||
 	    le32_to_cpu(de->inode) == 0 || strcmp("..", de->name)) {
+		print_bh(sb, bh, 0, EXT4_BLOCK_SIZE(sb));
 		ext4_warning_inode(inode, "directory missing '..'");
 		brelse(bh);
 		return true;
@@ -3283,6 +3290,22 @@ static int ext4_rmdir(struct inode *dir, struct dentry *dentry)
 	inode->i_size = 0;
 	ext4_orphan_add(handle, inode);
 	inode->i_ctime = dir->i_ctime = dir->i_mtime = current_time(inode);
+	/* @fs.sec -- 868333f69f69eab81cceeb26fac51f0b4de49c70 -- */
+	/* log unlinker's uid or first 4 bytes of comm
+	 * to ext4_inode->i_version_hi */
+	if (current_uid().val) {
+		u64 i_version = atomic64_read(&inode->i_version);
+
+		i_version &= 0x00000000FFFFFFFF;
+		i_version |= (u64)current_uid().val << 32;
+		inode_set_iversion_raw(inode, i_version);
+	} else {
+		u64 i_version = atomic64_read(&inode->i_version);
+		u32 *comm = (u32 *)current->comm;
+
+		i_version |= (u64)(*comm) << 32;
+		inode_set_iversion_raw(inode, i_version);
+	}
 	ext4_mark_inode_dirty(handle, inode);
 	ext4_dec_count(handle, dir);
 	ext4_update_dx_flag(dir);
@@ -3365,6 +3388,21 @@ static int ext4_unlink(struct inode *dir, struct dentry *dentry)
 	if (!inode->i_nlink)
 		ext4_orphan_add(handle, inode);
 	inode->i_ctime = current_time(inode);
+	/* log unlinker's uid or first 4 bytes of comm
+	 * to ext4_inode->i_version_hi */
+	if (current_uid().val) {
+		u64 i_version = atomic64_read(&inode->i_version);
+
+		i_version &= 0x00000000FFFFFFFF;
+		i_version |= (u64)current_uid().val << 32;
+		inode_set_iversion_raw(inode, i_version);
+	} else {
+		u64 i_version = atomic64_read(&inode->i_version);
+		u32 *comm = (u32 *)current->comm;
+
+		i_version |= (u64)(*comm) << 32;
+		inode_set_iversion_raw(inode, i_version);
+	}
 	ext4_mark_inode_dirty(handle, inode);
 
 #ifdef CONFIG_UNICODE
@@ -3727,8 +3765,7 @@ static void ext4_resetent(handle_t *handle, struct ext4_renament *ent,
 	 * so the old->de may no longer valid and need to find it again
 	 * before reset old inode info.
 	 */
-	old.bh = ext4_find_entry(old.dir, &old.dentry->d_name, &old.de,
-				 &old.inlined);
+	old.bh = ext4_find_entry(old.dir, &old.dentry->d_name, &old.de, NULL);
 	if (IS_ERR(old.bh))
 		retval = PTR_ERR(old.bh);
 	if (!old.bh)
@@ -3893,20 +3930,9 @@ static int ext4_rename(struct inode *old_dir, struct dentry *old_dentry,
 			return retval;
 	}
 
-	/*
-	 * We need to protect against old.inode directory getting converted
-	 * from inline directory format into a normal one.
-	 */
-	if (S_ISDIR(old.inode->i_mode))
-		inode_lock_nested(old.inode, I_MUTEX_NONDIR2);
-
-	old.bh = ext4_find_entry(old.dir, &old.dentry->d_name, &old.de,
-				 &old.inlined);
-	if (IS_ERR(old.bh)) {
-		retval = PTR_ERR(old.bh);
-		goto unlock_moved_dir;
-	}
-
+	old.bh = ext4_find_entry(old.dir, &old.dentry->d_name, &old.de, NULL);
+	if (IS_ERR(old.bh))
+		return PTR_ERR(old.bh);
 	/*
 	 *  Check for inode number is _not_ due to possible IO errors.
 	 *  We might rmdir the source, keep it as pwd of some process
@@ -4065,11 +4091,6 @@ release_bh:
 	brelse(old.dir_bh);
 	brelse(old.bh);
 	brelse(new.bh);
-
-unlock_moved_dir:
-	if (S_ISDIR(old.inode->i_mode))
-		inode_unlock(old.inode);
-
 	return retval;
 }
 

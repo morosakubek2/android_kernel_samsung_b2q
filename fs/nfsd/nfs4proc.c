@@ -1059,10 +1059,8 @@ out:
 	return status;
 out_put_dst:
 	nfsd_file_put(*dst);
-	*dst = NULL;
 out_put_src:
 	nfsd_file_put(*src);
-	*src = NULL;
 	goto out;
 }
 

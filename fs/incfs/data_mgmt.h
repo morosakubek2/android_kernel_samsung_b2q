@@ -10,7 +10,6 @@
 #include <linux/types.h>
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
-#include <linux/rcupdate.h>
 #include <linux/completion.h>
 #include <linux/wait.h>
 #include <crypto/hash.h>
@@ -127,13 +126,13 @@ struct mount_info {
 	wait_queue_head_t mi_pending_reads_notif_wq;
 
 	/*
-	 * Protects - RCU safe:
+	 * Protects:
 	 *  - reads_list_head
 	 *  - mi_pending_reads_count
 	 *  - mi_last_pending_read_number
 	 *  - data_file_segment.reads_list_head
 	 */
-	spinlock_t pending_read_lock;
+	struct mutex mi_pending_reads_mutex;
 
 	/* List of active pending_read objects */
 	struct list_head mi_reads_list_head;
@@ -179,8 +178,6 @@ struct pending_read {
 	struct list_head mi_reads_list;
 
 	struct list_head segment_reads_list;
-
-	struct rcu_head rcu;
 };
 
 struct data_file_segment {

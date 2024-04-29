@@ -15,7 +15,6 @@
 #include "xfs_trans_priv.h"
 #include "xfs_quota.h"
 #include "xfs_qm.h"
-#include "xfs_error.h"
 
 STATIC void	xfs_trans_alloc_dqinfo(xfs_trans_t *);
 
@@ -701,14 +700,9 @@ xfs_trans_dqresv(
 					    XFS_TRANS_DQ_RES_INOS,
 					    ninos);
 	}
-
-	if (XFS_IS_CORRUPT(mp,
-		dqp->q_res_bcount < be64_to_cpu(dqp->q_core.d_bcount)) ||
-	    XFS_IS_CORRUPT(mp,
-		dqp->q_res_rtbcount < be64_to_cpu(dqp->q_core.d_rtbcount)) ||
-	    XFS_IS_CORRUPT(mp,
-		dqp->q_res_icount < be64_to_cpu(dqp->q_core.d_icount)))
-		goto error_corrupt;
+	ASSERT(dqp->q_res_bcount >= be64_to_cpu(dqp->q_core.d_bcount));
+	ASSERT(dqp->q_res_rtbcount >= be64_to_cpu(dqp->q_core.d_rtbcount));
+	ASSERT(dqp->q_res_icount >= be64_to_cpu(dqp->q_core.d_icount));
 
 	xfs_dqunlock(dqp);
 	return 0;
@@ -718,10 +712,6 @@ error_return:
 	if (flags & XFS_QMOPT_ENOSPC)
 		return -ENOSPC;
 	return -EDQUOT;
-error_corrupt:
-	xfs_dqunlock(dqp);
-	xfs_force_shutdown(mp, SHUTDOWN_CORRUPT_INCORE);
-	return -EFSCORRUPTED;
 }
 
 

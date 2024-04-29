@@ -46,9 +46,14 @@ struct xfs_ifork {
 			(ip)->i_afp : \
 			(ip)->i_cowfp))
 #define XFS_IFORK_DSIZE(ip) \
-	(XFS_IFORK_Q(ip) ? XFS_IFORK_BOFF(ip) : XFS_LITINO((ip)->i_mount))
+	(XFS_IFORK_Q(ip) ? \
+		XFS_IFORK_BOFF(ip) : \
+		XFS_LITINO((ip)->i_mount, (ip)->i_d.di_version))
 #define XFS_IFORK_ASIZE(ip) \
-	(XFS_IFORK_Q(ip) ? XFS_LITINO((ip)->i_mount) - XFS_IFORK_BOFF(ip) : 0)
+	(XFS_IFORK_Q(ip) ? \
+		XFS_LITINO((ip)->i_mount, (ip)->i_d.di_version) - \
+			XFS_IFORK_BOFF(ip) : \
+		0)
 #define XFS_IFORK_SIZE(ip,w) \
 	((w) == XFS_DATA_FORK ? \
 		XFS_IFORK_DSIZE(ip) : \
