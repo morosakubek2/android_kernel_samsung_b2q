@@ -6373,7 +6373,7 @@ CONFIG_SEC_INPUT_BOOSTER_QC=y
 # samsung Performace manager
 #
 #CONFIG_KPERFMON  is not set
-#CONFIG_KPERFMON  is not set
+CONFIG_KPERFMON_BUILD=m
 # end of samsung Performace manager
 
 CONFIG_SEC_PERF_MANAGER=y
