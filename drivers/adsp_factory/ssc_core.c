@@ -906,7 +906,7 @@ static void print_sensor_dump(struct adsp_data *data, int sensor)
 		break;
 	}
 }
-
+/*
 void print_ssr_history()
 {
 	int i;
@@ -923,7 +923,7 @@ void print_ssr_history()
 
 		pr_info("[FACTORY] %s\n", ssr_history[i]);
 	}
-}
+}*/
 
 static BLOCKING_NOTIFIER_HEAD(sensordump_notifier_list);
 int sensordump_notifier_register(struct notifier_block *nb)
@@ -1024,7 +1024,7 @@ void sensor_dump_work_func(struct work_struct *work)
 		MSG_SSC_CORE, 0, MSG_TYPE_OPTION_DEFINE);
 
 	adsp_unicast(NULL, 0, MSG_REG_SNS, 0, MSG_TYPE_OPTION_DEFINE);
-	print_ssr_history();
+	#print_ssr_history();
 }
 
 static ssize_t sensor_dump_show(struct device *dev,
