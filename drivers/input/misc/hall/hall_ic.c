@@ -213,7 +213,7 @@ static ssize_t flip_status_store(struct device *dev,
 			continue;
 
 		if (hall->input) {
-			input_report_switch(hall->input, hall->event, state);
+			input_report_switch(hall->input, 0x00, state);
 			input_sync(hall->input);
 			pr_info("[sec_input] %s: %s %d: %d\n", __func__, hall->name, hall->event, state);
 		}
@@ -311,7 +311,7 @@ static void dump_hall_event(struct device *dev)
 			if (hall->event != SW_FOLDER)
 				continue;
 			if (hall->input) {
-				input_report_switch(hall->input, hall->event, 0);
+				input_report_switch(hall->input, 0x00, 0);
 				input_sync(hall->input);
 				pr_info("[sec_input] %s: %s %d\n", __func__, hall->name, hall->event);
 			}
@@ -341,7 +341,7 @@ static void hall_ic_work(struct work_struct *work)
 			state ? "close" : "open");
 
 		if (hall->input) {
-			input_report_switch(hall->input, hall->event, state);
+			input_report_switch(hall->input,0x00, state);
 			input_sync(hall->input);
 		}
 
@@ -506,7 +506,7 @@ static int hall_ic_input_dev_register(struct hall_ic_data *hall)
 
 	ret = input_register_device(input);
 	if (ret) {
-		pr_err("failed to register input device\n");
+		pr_info("Failed to get gpio flags %d\n", ret);
 		return ret;
 	}
 
@@ -642,7 +642,7 @@ static struct hall_ic_pdata *hall_ic_parsing_dt(struct device *dev)
 		}
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 		if (hall->event == 0x15) { /* SW_FLIP */
-			hall->event = 0x10;
+			hall->event = 0x00;
 		} else if (hall->event == 0x1b) {	/* SW_CERTIFYHALL */
 			hall->event = 0x0b;
 		} else if (hall->event == 0x1e) {	/* SW_WACOM_HALL */
@@ -769,7 +769,7 @@ static int hall_ic_resume(struct device *dev)
 		pr_info("%s %s %s(%d)\n", __func__, hall->name,
 			state ? "close" : "open", hall->state);
 		disable_irq_wake(hall->irq);
-		input_report_switch(hall->input, hall->event, state);
+		input_report_switch(hall->input, 0x00, state);
 		input_sync(hall->input);
 	}
 	return 0;
