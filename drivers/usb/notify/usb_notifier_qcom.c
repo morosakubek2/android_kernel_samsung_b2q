@@ -565,17 +565,22 @@ static int usb_notifier_probe(struct platform_device *pdev)
 
 static int usb_notifier_remove(struct platform_device *pdev)
 {
-	struct usb_notifier_platform_data *pdata = dev_get_platdata(&pdev->dev);
+	struct usb_notifier_platform_data *pdata;
 #if IS_ENABLED(CONFIG_PDIC_NOTIFIER)
 #if IS_ENABLED(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
+	pdata = dev_get_platdata(&pdev->dev);
 	manager_notifier_unregister(&pdata->ccic_usb_nb);
 #else
+	pdata = dev_get_platdata(&pdev->dev);
 	ccic_notifier_unregister(&pdata->ccic_usb_nb);
 #endif
 #elif IS_ENABLED(CONFIG_MUIC_NOTIFIER)
+	pdata = dev_get_platdata(&pdev->dev);
 	muic_notifier_unregister(&pdata->muic_usb_nb);
 #endif
 #if IS_ENABLED(CONFIG_VBUS_NOTIFIER)
+
+	pdata = dev_get_platdata(&pdev->dev);
 	vbus_notifier_unregister(&pdata->vbus_nb);
 #endif
 	return 0;
